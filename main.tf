@@ -1,152 +1,89 @@
-# VPC (default_tags handles base tags)
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  # tags = local.full_tags  ← REMOVED (use default_tags)
+# ── standalone mode ──────────────────────────────────────────────────────────
+# Single VPC: public + private + data subnets. In-place EKS upgrades only.
+
+module "standalone" {
+  count  = local.is_standalone ? 1 : 0
+  source = "./modules/vpc-standalone"
+
+  name_prefix          = local.name_prefix
+  vpc_cidr             = var.standalone_vpc_cidr
+  az_count             = var.az_count
+  azs                  = local.azs
+  public_subnet_cidrs  = var.standalone_public_subnet_cidrs
+  private_subnet_cidrs = var.standalone_private_subnet_cidrs
+  data_subnet_cidrs    = var.standalone_data_subnet_cidrs
+  eks_cluster_name     = var.eks_cluster_name
 }
 
-# Internet Gateway
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-  
-  tags = {
-    Name = "${local.vpc_name_prefix}-igw"
-  }
+# ── blue_green mode ──────────────────────────────────────────────────────────
+# Three separate VPCs: blue cluster, green cluster (on demand), shared data.
+# Blue and green are isolated; both peer to the shared data VPC.
+
+module "blue_vpc" {
+  count  = local.is_blue_green ? 1 : 0
+  source = "./modules/vpc-cluster"
+
+  name_prefix          = local.name_prefix
+  color                = "blue"
+  vpc_cidr             = var.blue_vpc_cidr
+  az_count             = var.az_count
+  azs                  = local.azs
+  public_subnet_cidrs  = var.blue_public_subnet_cidrs
+  private_subnet_cidrs = var.blue_private_subnet_cidrs
+  eks_cluster_name     = var.eks_blue_cluster_name
 }
 
-# Public Subnets (ALB/NAT)
-resource "aws_subnet" "public" {
-  count                   = var.az_count
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidrs[count.index]
-  availability_zone       = local.azs[count.index]
-  map_public_ip_on_launch = true
+# Green VPC — provisioned only when green_enabled = true (i.e. during an upgrade)
+module "green_vpc" {
+  count  = local.is_blue_green && var.green_enabled ? 1 : 0
+  source = "./modules/vpc-cluster"
 
-  tags = {
-    Name = "${local.vpc_name_prefix}-public-${count.index + 1}"
-    Type = "public"
-  }
+  name_prefix          = local.name_prefix
+  color                = "green"
+  vpc_cidr             = var.green_vpc_cidr
+  az_count             = var.az_count
+  azs                  = local.azs
+  public_subnet_cidrs  = var.green_public_subnet_cidrs
+  private_subnet_cidrs = var.green_private_subnet_cidrs
+  eks_cluster_name     = var.eks_green_cluster_name
 }
 
-# Private Blue (EKS Blue)
-resource "aws_subnet" "private_blue" {
-  count             = var.az_count
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_blue_subnet_cidrs[count.index]
-  availability_zone = local.azs[count.index]
+# Shared data VPC — RDS/Redis, no internet, peered to cluster VPCs
+module "data_vpc" {
+  count  = local.is_blue_green ? 1 : 0
+  source = "./modules/vpc-data"
 
-  tags = {
-    Name       = "${local.vpc_name_prefix}-private-blue-${count.index + 1}"
-    Type       = "private"
-    ClusterEnv = "blue"
-  }
+  name_prefix       = local.name_prefix
+  vpc_cidr          = var.data_vpc_cidr
+  az_count          = var.az_count
+  azs               = local.azs
+  data_subnet_cidrs = var.data_subnet_cidrs
 }
 
-# Private Green (EKS Green)
-resource "aws_subnet" "private_green" {
-  count             = var.az_count
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_green_subnet_cidrs[count.index]
-  availability_zone = local.azs[count.index]
+# Blue ↔ Data peering (always present in blue_green mode)
+module "blue_data_peering" {
+  count  = local.is_blue_green ? 1 : 0
+  source = "./modules/vpc-peering"
 
-  tags = {
-    Name       = "${local.vpc_name_prefix}-private-green-${count.index + 1}"
-    Type       = "private"
-    ClusterEnv = "green"
-  }
+  name_prefix                       = "${local.name_prefix}-blue-data"
+  requester_vpc_id                  = module.blue_vpc[0].vpc_id
+  requester_vpc_cidr                = var.blue_vpc_cidr
+  requester_private_route_table_ids = module.blue_vpc[0].private_route_table_ids
+  accepter_vpc_id                   = module.data_vpc[0].vpc_id
+  accepter_vpc_cidr                 = var.data_vpc_cidr
+  accepter_route_table_id           = module.data_vpc[0].data_route_table_id
 }
 
-# Data Subnets (RDS/Redis)
-resource "aws_subnet" "data" {
-  count             = var.az_count
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.data_subnet_cidrs[count.index]
-  availability_zone = local.azs[count.index]
+# Green ↔ Data peering (only when green VPC is provisioned)
+module "green_data_peering" {
+  count  = local.is_blue_green && var.green_enabled ? 1 : 0
+  source = "./modules/vpc-peering"
 
-  tags = {
-    Name = "${local.vpc_name_prefix}-data-${count.index + 1}"
-    Type = "data"
-  }
-}
-
-# EIPs (default_tags auto-applied)
-resource "aws_eip" "nat" {
-  count  = var.az_count
-  domain = "vpc"
-
-  tags = {
-    Name = "${local.vpc_name_prefix}-nat-eip-${count.index + 1}"
-  }
-
-  depends_on = [aws_internet_gateway.main]
-}
-
-# NAT Gateways
-resource "aws_nat_gateway" "main" {
-  count         = var.az_count
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-
-  tags = {
-    Name = "${local.vpc_name_prefix}-nat-${count.index + 1}"
-  }
-
-  depends_on = [aws_internet_gateway.main]
-}
-
-# Public Route Table
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-
-  tags = {
-    Name = "${local.vpc_name_prefix}-public-rt"
-  }
-}
-
-resource "aws_route_table_association" "public" {
-  count          = var.az_count
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
-}
-
-# Private Blue Route Tables (NAT per AZ)
-resource "aws_route_table" "private_blue" {
-  count  = var.az_count
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
-  }
-
-  tags = {
-    Name = "${local.vpc_name_prefix}-private-blue-rt-${count.index + 1}"
-  }
-}
-
-resource "aws_route_table_association" "private_blue" {
-  count          = var.az_count
-  subnet_id      = aws_subnet.private_blue[count.index].id
-  route_table_id = aws_route_table.private_blue[count.index].id
-}
-
-# Data Route Table (isolated - NO internet)
-resource "aws_route_table" "data" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "${local.vpc_name_prefix}-data-rt"
-  }
-}
-
-resource "aws_route_table_association" "data" {
-  count          = var.az_count
-  subnet_id      = aws_subnet.data[count.index].id
-  route_table_id = aws_route_table.data.id
+  name_prefix                       = "${local.name_prefix}-green-data"
+  requester_vpc_id                  = module.green_vpc[0].vpc_id
+  requester_vpc_cidr                = var.green_vpc_cidr
+  requester_private_route_table_ids = module.green_vpc[0].private_route_table_ids
+  accepter_vpc_id                   = module.data_vpc[0].vpc_id
+  accepter_vpc_cidr                 = var.data_vpc_cidr
+  accepter_route_table_id           = module.data_vpc[0].data_route_table_id
 }
