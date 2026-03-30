@@ -30,7 +30,7 @@ variable "common_tags" {
   default = {
     Project    = "ai-search"
     ManagedBy  = "Terraform"
-    Repository = "tf-module-vpc"
+    Repository = "aj-tf-module-vpc"
   }
 }
 
@@ -52,22 +52,28 @@ variable "eks_deployment_mode" {
 
 # AZ config (shared across modes)
 variable "az_count" {
-  type        = number
-  description = "Number of AZs (2-3)"
-  default     = 3
+  type = number
+  description = <<-EOT
+    Number of Availability Zones to spread subnets across.
+      2 = cost-optimised dev/staging  (lower cross-AZ data-transfer costs, relaxed SLO)
+      3 = standard HA production       (default — balanced cost vs resilience, 99.9% SLA)
+      4 = high-resilience / regulated  (financial, healthcare, strict 99.99% SLA)
+    Must match the az_count used in aj-tf-module-eks.
+  EOT
+  default = 3
   validation {
-    condition     = var.az_count >= 2 && var.az_count <= 3
-    error_message = "AZ count must be 2-3."
+    condition     = contains([2, 3, 4], var.az_count)
+    error_message = "az_count must be 2, 3, or 4."
   }
 }
 
 variable "availability_zones" {
   type        = list(string)
-  description = "Availability zones for subnets"
-  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
+  description = "Availability zones for subnets. Must provide at least az_count entries, ordered consistently."
+  default     = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
   validation {
-    condition     = length(var.availability_zones) >= 2 && length(var.availability_zones) <= 3
-    error_message = "Must provide 2-3 AZs."
+    condition     = length(var.availability_zones) >= 2 && length(var.availability_zones) <= 4
+    error_message = "Must provide 2-4 AZs."
   }
 }
 
