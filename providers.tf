@@ -6,7 +6,7 @@ terraform {
       version = "= 5.100.0"
     }
   }
-  
+
   # Backend configured dynamically by pipelines via -backend-config
   # terraform {
   #   backend "s3" {

@@ -26,7 +26,7 @@ variable "cost_center" {
 }
 
 variable "common_tags" {
-  type    = map(string)
+  type = map(string)
   default = {
     Project    = "ai-search"
     ManagedBy  = "Terraform"
