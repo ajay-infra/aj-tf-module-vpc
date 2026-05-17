@@ -26,7 +26,7 @@ variable "cost_center" {
 }
 
 variable "common_tags" {
-  type = map(string)
+  type    = map(string)
   default = {
     Project    = "ai-search"
     ManagedBy  = "Terraform"
@@ -52,7 +52,7 @@ variable "eks_deployment_mode" {
 
 # AZ config (shared across modes)
 variable "az_count" {
-  type = number
+  type        = number
   description = <<-EOT
     Number of Availability Zones to spread subnets across.
       2 = cost-optimised dev/staging  (lower cross-AZ data-transfer costs, relaxed SLO)
@@ -60,7 +60,7 @@ variable "az_count" {
       4 = high-resilience / regulated  (financial, healthcare, strict 99.99% SLA)
     Must match the az_count used in aj-tf-module-eks.
   EOT
-  default = 3
+  default     = 3
   validation {
     condition     = contains([2, 3, 4], var.az_count)
     error_message = "az_count must be 2, 3, or 4."
