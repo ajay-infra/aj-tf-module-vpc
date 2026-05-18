@@ -31,6 +31,32 @@ Two modes controlled by `eks_deployment_mode`:
 
 ---
 
+## Where It Fits
+
+**Architecture layer:** L2 — Network
+**Provisioned by:** `aj-infra-release` — `provision-eks.yml` (workload clusters) or `provision-central.yml` (umbrella clusters)
+**Runs:** Stage 1 of every cluster pipeline (VPC before EKS)
+**State key pattern:** `workload/blue-green/<env>/vpc/terraform.tfstate` or `central/<tier>/vpc/terraform.tfstate`
+
+## How to Use
+
+Triggered via `provision-eks.yml` in aj-infra-release:
+
+```
+GitHub Actions → provision-eks.yml
+  inputs: mode (blue-green|standalone), environment (dev|staging|prod|...), color (blue|green)
+```
+
+tfvars file to configure: `aj-infra-release/envs/workload/<mode>/<env>/vpc.tfvars`
+
+GitHub secrets required:
+- `TF_STATE_BUCKET` — S3 bucket in the target AWS account (created by `scripts/bootstrap-state-store.sh`)
+- `AWS_DEPLOY_ROLE_ARN` — IAM role with VPC/EC2 permissions in the workload account
+
+The pipeline passes `vpc_id`, `private_subnet_ids`, `public_subnet_ids` as `-var` flags to the EKS stage automatically — no manual wiring needed.
+
+---
+
 ## Submodules
 
 | Module | Purpose |
@@ -46,7 +72,7 @@ Two modes controlled by `eks_deployment_mode`:
 
 | File | Purpose |
 |---|---|
-| `providers.tf` | AWS provider pinned to `= 5.100.0`, Terraform `= 1.7.5` |
+| `providers.tf` | AWS provider pinned to `= 5.100.0`, Terraform `= 1.10.5` |
 | `variables.tf` | All inputs — mode, CIDRs, AZ config, tags |
 | `locals.tf` | `name_prefix`, `azs` slice, `is_standalone`/`is_blue_green` booleans |
 | `main.tf` | Module instantiation with `count`-based conditional logic |
