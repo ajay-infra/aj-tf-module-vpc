@@ -244,7 +244,7 @@ terraform init \
   -backend-config="bucket=tf-state-central-123456789012" \
   -backend-config="key=dev/vpc/terraform.tfstate" \
   -backend-config="region=us-east-1" \
-  -backend-config="dynamodb_table=tf-locks-central"
+  -backend-config="use_lockfile=true"
 
 terraform apply -var-file=envs/dev.tfvars
 ```
@@ -367,7 +367,7 @@ The green VPC only incurs cost during an active upgrade window. Destroy it immed
 
 | Tool | Version |
 |---|---|
-| Terraform | `= 1.7.5` |
+| Terraform | `= 1.10.5` |
 | AWS provider | `= 5.100.0` |
 
 Exact pins — no ranges. Upgrade deliberately: bump the pin, run `terraform init -upgrade`, validate, commit.
