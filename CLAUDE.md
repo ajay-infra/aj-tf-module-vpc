@@ -6,7 +6,7 @@
 
 ## What This Module Does
 
-Provisions AWS VPC networking for the AI Search Engine platform (L2 in the roadmap).
+Provisions AWS VPC networking for the platform (L2 in the infrastructure layer stack — see `aj-infra-context/CLAUDE.md`).
 
 Two modes controlled by `eks_deployment_mode`:
 
@@ -15,13 +15,15 @@ Two modes controlled by `eks_deployment_mode`:
 | `standalone` | 1 VPC (configurable CIDR) with public + private + data subnets | Simple single-cluster setup, in-place upgrades only |
 | `blue_green` | Blue VPC + Data VPC (always) + optional Green VPC | Zero-downtime EKS cluster swaps |
 
-### Blue/Green CIDR Layout (defaults)
+### Blue/Green CIDR Layout (dev example — each environment has its own range)
 
 | VPC | CIDR | Purpose |
 |---|---|---|
 | Blue | 10.100.0.0/16 | Active EKS cluster |
 | Green | 10.101.0.0/16 | Standby cluster (provisioned when `green_enabled = true`) |
 | Data | 10.102.0.0/16 | Shared RDS/Redis — no internet gateway |
+
+Staging and prod use different ranges (10.110.x/10.111.x/10.112.x and 10.120.x/10.121.x/10.122.x respectively) — see `README.md`'s "Standard CIDR plan" for the authoritative full table across all environments, so this doesn't drift out of sync again.
 
 ### VPC Peering
 
@@ -46,7 +48,7 @@ Two modes controlled by `eks_deployment_mode`:
 
 | File | Purpose |
 |---|---|
-| `providers.tf` | AWS provider pinned to `= 5.100.0`, Terraform `= 1.7.5` |
+| `providers.tf` | AWS provider pinned to `= 5.100.0`, Terraform `= 1.10.5` |
 | `variables.tf` | All inputs — mode, CIDRs, AZ config, tags |
 | `locals.tf` | `name_prefix`, `azs` slice, `is_standalone`/`is_blue_green` booleans |
 | `main.tf` | Module instantiation with `count`-based conditional logic |
@@ -79,7 +81,9 @@ Two modes controlled by `eks_deployment_mode`:
 ## Running Locally
 
 ```bash
-# From My-Infra/
+# From aj-infra-context/local-testing/ (formerly My-Infra/ — repo renamed;
+# note this local Podman workflow currently has no Makefile/Dockerfile, see
+# that repo's local-testing/README.md for the known gap)
 make shell
 
 # Inside container
@@ -87,7 +91,8 @@ cd /workspaces/aj-tf-module-vpc
 terraform init \
   -backend-config="bucket=<state-bucket>" \
   -backend-config="key=dev/vpc/terraform.tfstate" \
-  -backend-config="region=us-east-1"
+  -backend-config="region=us-east-1" \
+  -backend-config="use_lockfile=true"
 
 terraform plan -var-file=envs/dev.tfvars
 terraform apply -var-file=envs/dev.tfvars
@@ -116,7 +121,7 @@ Stage 2: infra-platform
 
 ## Known TODOs
 
-- [ ] Add `envs/dev.tfvars` and `envs/staging.tfvars` example files
-- [ ] Add `.github/workflows/ci.yml` (fmt + validate + plan matrix)
+- [x] Add `envs/dev.tfvars` and `envs/staging.tfvars` example files
+- [x] Add `.github/workflows/ci.yml` (fmt + validate + plan matrix)
 - [ ] Flow Logs — VPC flow logs to S3/CloudWatch not yet wired
 - [ ] Transit Gateway support for multi-account setups (future)

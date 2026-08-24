@@ -1,13 +1,13 @@
 # envs/dev.tfvars — dev workload cluster (blue, az_count=2, standalone or blue_green)
 
-vpc_name            = "ai-platform-dev"
+vpc_name            = "ai-search-dev"
 environment         = "dev"
 eks_deployment_mode = "blue_green"
 az_count            = 2
 
 availability_zones = ["us-east-1a", "us-east-1b"]
 
-eks_blue_cluster_name = "ai-platform-dev-blue"
+eks_blue_cluster_name = "ai-search-dev-blue"
 
 blue_vpc_cidr             = "10.100.0.0/16"
 blue_public_subnet_cidrs  = ["10.100.0.0/27", "10.100.0.32/27"]
