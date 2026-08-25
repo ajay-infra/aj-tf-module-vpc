@@ -138,7 +138,7 @@ For SaaS customer clusters, the customer-specific tfvars live in `aj-infra-relea
 
 ## How aj-infra-release uses this module
 
-VPC is **Stage 1** in every provisioning pipeline (`provision-eks.yml`):
+VPC is **Stage 1** in every provisioning pipeline (`aws/provision-workload.yml` for workload clusters, `aws/provision-central.yml` for central — renamed/split from the old `provision-eks.yml` in `aj-infra-release`):
 
 ```
 Stage 1: aj-tf-module-vpc  ← this module

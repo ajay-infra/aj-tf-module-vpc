@@ -5,6 +5,7 @@ All notable changes to this module are documented here. Format loosely follows [
 ## [Unreleased]
 
 ### Fixed
+- `README.md` referenced `provision-eks.yml` — renamed and split into `aws/provision-workload.yml` (Terraform) + `k8s/bootstrap-workload.yml` (Helm/ArgoCD) in `aj-infra-release` (missed when the rest of this repo's docs were fixed, since the rename lives in a different repo). Corrected the reference.
 - `CLAUDE.md` generalized "Provisions AWS VPC networking for the AI Search Engine platform" to describe the module itself (reusable infra tooling, not tied to one product's name) — "ai-search" is still the real, currently-deployed product per `aj-infra-release`'s actual tfvars (see below), so this was about scoping the module's own self-description correctly, not correcting stale info.
 - All three `envs/*.tfvars` files had `vpc_name`/`eks_blue_cluster_name` set to `"ai-platform-<env>"` — this didn't match anything. Checked `aj-infra-release/envs/workload/blue-green/*/vpc.tfvars` (the actual pipeline repo that drives real deployments) and found the real, live convention is `"ai-search-<env>"` / `"ai-search-<env>-blue"` — consistent across dev/staging/prod/prod-regulated/standalone there. Updated this module's examples to match.
 - `CLAUDE.md`'s CIDR table was a single generic Blue/Green/Data set presented as "the defaults," when each environment actually has its own range. Relabeled as a dev example and pointed at `README.md`'s authoritative per-environment table instead of duplicating one that can drift.
