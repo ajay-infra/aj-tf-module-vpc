@@ -5,6 +5,10 @@ locals {
   is_blue_green = var.eks_deployment_mode == "blue_green"
 
   full_tags = merge(var.common_tags, {
+    # The estate's base set — see aj-skill-farm/rules/tagging.yaml.
+    Project     = "aj-tf-module-vpc"
+    ManagedBy   = "Terraform"
+    Repository  = "aj-tf-module-vpc"
     Environment = var.environment
     Team        = var.team
     CostCenter  = var.cost_center
