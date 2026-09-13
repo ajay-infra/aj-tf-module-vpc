@@ -16,3 +16,6 @@ data_vpc_cidr     = "10.102.0.0/16"
 data_subnet_cidrs = ["10.102.0.0/26", "10.102.0.64/26"]
 
 green_enabled = false
+
+# Ownership — required since var.team lost its default (a team code, aj-infra/envs/org/teams.yaml).
+team = "team-0001"
